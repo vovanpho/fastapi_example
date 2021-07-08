@@ -1,0 +1,302 @@
+
+from datetime import datetime, timedelta
+
+from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
+# phan mem trung gian
+from starlette.middleware.cors import CORSMiddleware
+# ho tro phuong thuc post du  lieu 
+from pydantic import BaseModel
+from jose import JWTError, jwt
+from passlib.context import CryptContext
+
+
+
+
+pwd_context =CryptContext(schemes=["bcrypt"], deprecated="auto")
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl="token")
+
+user={
+        "username":"phovv",
+        "full_name":"pho vo",
+        "email":"phovv@scb.com.vn",
+        "password":"123"
+    }
+
+
+SECRET_KEY = "09d25e094faa6ca2556c818166b7a9563b93f7099f6f0f4caa6cf63b88e8d3e7"
+ALGORITHM = "HS256"
+ACCESS_TOKEN_EXPIRE_MINUTES = 30
+
+class Item (BaseModel): # ke thua class BaseModel
+    name: str
+    description: Optional[str] = None 
+    price: float
+    tax: Optional[float] = None
+class User (BaseModel):
+    username: str
+    full_name: Optional[str]=None
+    email: Optional[str]=None
+
+def get_user(db, username:str):
+    if username in db['username']:
+        user_dict = db['username']
+        return user_dict
+
+def fake_decode_token(token):
+    user = get_user(fake_user_db, token)
+    return user
+
+async def get_current_user(token: str = Depends(oauth2_scheme)):
+    user =fake_decode_token(token)
+    if not user: 
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"}    
+        )
+    return user
+
+def verify_password(plain_password, hashed_password):
+    return pwd_context.verify(plain_password, hashed_password)
+
+
+def get_password_hash(password):
+    return pwd_context.hash(password)
+
+
+def authenticate_user(user, username: str, password: str):
+    if not username == user["email"]:
+        return False
+    hashed_password = get_password_hash(user["password"])
+    if not verify_password(password, hashed_password):
+        return False
+    return user
+
+def create_access_token(data: dict, expires_delta: Optional[timedelta] = None):
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=15)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
+    return encoded_jwt
+
+@app.post("/login")
+async def login(form_data: OAuth2PasswordRequestForm = Depends()):
+    user_info = authenticate_user(user, form_data.username, form_data.password)
+    print(form_data)
+    if not user_info:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication credentials",
+            headers={"WWW-Authenticate": "Bearer"}   )
+    # if not form_data.password == user_dict["password"]:
+    #     raise HTTPException(status_code=400, detail="Incorrect username and password")
+    # return {"access_token": user_dict['username'], "token_type": "bearer"}
+    access_token_expires= timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES) 
+    access_token = create_access_token(
+        data={"sub":user_info['email'],},
+        expires_delta=access_token_expires)
+    return {
+                "status":1, 
+                "result":{
+                        "access-token": access_token
+                    }
+            }
+
+@app.post('/tts')
+async def text_to_speech(access_token: Optional[str]=Header(None)):
+    credentials_exception = HTTPException(
+        status_code = status.HTTP_401_UNAUTHORIZED,
+        headers={"WWW-Authenticate":"Bearer"})
+    try:
+        payload = jwt.decode(access_token, SECRET_KEY,algorithms=[ALGORITHM])
+        email: str = payload.get('sub')
+        if email == user['email']:
+            return {
+                "status": 1, 
+                "data":1
+            }
+        else:
+            raise credentials_exception
+    except JWTError:
+        raise credentials_exception
+
+@app.get("/user/me")
+async def read_user_me(current_user: User = Depends(get_current_user)):
+    return current_user
+
+
+
+# neu co hai duong path giong nhau thi duong path ghi truoc chay truoc
+@app.get("/")
+def read_root():
+    return {"Hello": "World"}
+
+# path parameters with types & data validation Pydantic & Optional parameters
+# @app.get("/items/{item_id}")
+# def read_item(item_id: int, q: Optional[str] = None):
+#     return {"item_id": item_id, "q": q}
+
+#
+# file_path = "mytest.txt"
+# @app.get("/files/{file_path:path}")
+# def read_file(file_path: str):
+#     return {"file_path": file_path}
+
+# query Parameters /?skip=0&&limit=10
+# fake_item_db = [
+#     {"item_name" : "foo"},
+#     {"item_name" : "da"},
+# ]
+# @app.get("/items/")
+# def read_item(skip: int = 0, limit: int = 10):
+#     return fake_item_db[skip: skip + limit]
+
+#query parameter  too?short=False
+# @app.get("/items/{item_id}")
+# def read_item(item_id: str, short: bool = False):
+#     item = {"item_id": item_id}
+#     if not short:
+#         item.update({
+#             "description":"item khoong dung"
+#         })
+#     return item
+
+# mutil
+# @app.get("/items/{item_id}/{item_name}")
+# def read_item(item_id: int, item_name: str):
+#     item = {
+#         "item_id": item_id,
+#         "item_name":item_name
+#     }
+#     return item
+
+'''
+Request Body
+'''
+
+
+
+# @app.post("/items/")
+# def create_item(item: Item):
+#     item_dict = item.dict() #The dict() constructor creates a dictionary in Python.
+#     if item.tax:
+#         price_with_tax = item.price + item.tax
+#         item_dict.update({"price_with_tax": price_with_tax})
+#     return item_dict
+# request body  path parameters
+# @app.put("/items/{item_id}")
+# def create_item(item_id: int, item: Item):
+#     return {"item_id": item_id, **item.dict()} #**kwarg let you take an arbitrary number of keyword arguments.
+
+#validations String ?q=stringerere&q=&q=string min_length with list la so lan nhap
+#validations number gt
+# @app.get("/items/{item_id}")
+# def read_items(q: Optional[List[str]]= Query(None, min_length=3), item_id: int = Path(...,title="the ID", ge=1)):
+#     query_item = ({"q": q}, {"item_id": item_id})
+#     if q:
+#         query_item.update({"q":q})
+#     return query_item
+
+# #mutil parameter
+# @app.put("/items/{item_id}")
+# async def update_item(item_id: int, item: Item, user: User):
+#     results = {"item_id": item_id, "item": item, "user": user}
+#     return results
+# async def update_item(
+#     *,
+#     item_id: int,
+#     item: Item,
+#     user: User,
+#     importance: int = Body(..., gt=0),
+#     q: Optional[str] = None
+# ):
+#     results = {"item_id": item_id, "item": item, "user": user, "importance": importance}
+#     if q:
+#         results.update({"q": q})
+#     return results
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# import os
+# from __future__ import with_statement
+# from alembic import context
+# from sqlachemy import engine_from_config, pool
+
+# from app.db.Base import Base
+# target_metadata = Base.metadata
+
+# # ho tro truy cap gia tri trong file .ini
+# config = context.config
+
+# def get_url():
+#     user = os.getenv("POSTGRES_USER", "postgres")
+#     password = os.getenv("POSTGRES_PASSWORD", "1234")
+#     server = os.getenv("POSTGRES_SERVER", "localhost")
+#     db = os.getenv("POSTGRES_DB", "db_test")
+#     return f"postgresql://{user}:{password}@{server}/{db}"
+
+# def run_migrations_offline():
+#     url = get_url()
+#     context.configure(
+#         url=url,
+#         target_metadata = target_metadata,
+#         literal_binds = True,
+#         compare_type = True
+#     )
+
+#     with context.begin_transaction():
+#         context.run_migration()
+
+# def run_migration_online():
+#     configuration = config.get_section(config.config_ini_section)
+#     configuration["sqlalchemy.url"] = get_url()
+#     connectable = engine_from_config(
+#         configuration, prefix="sqlchemy.", poolclass=pool.NullPool
+#     )
+#     with connectable.connect() as connection:
+#         context.configure(
+#             connection = connection,
+#             target_metadata= target_metadata,
+#             compare_type=True
+#         )
+
+#         with context.begin_transaction():
+#             context.run_migrations()
+
+
+# if context.is_offline_mode():
+#     run_migrations_offline()
+# else:
+#     run_migrations_online()
+    
