@@ -42,7 +42,7 @@ class Settings(BaseSettings):
     #         )
     DATABASE_URL = os.environ.get("DATABASE_URL", "postgresql://postgres:1234@localhost:5432/db_test")
     USERS_OPEN_REGISTRATION: bool = True
-    EMAILS_ENABLED: bool = False
+    EMAILS_ENABLED: bool = True
     # EmailStr = "test@example.com"
     # EMAIL_TEST_USER: EmailStr    # type: ignore
     # FIRST_SUPERUSER: EmailStr

@@ -7,23 +7,25 @@ class UserBase(BaseModel):
     is_active: Optional[bool] = True
     is_superuser: bool = False
     
-
+# khi nhan tu api
 class UserCreate(UserBase):
     email: EmailStr
     password: str
 
 class UserUpdate(UserBase):
-    id: Optional[int] = None
+    password: Optional[str] = None
 
-class UserInDBase(UserBase):
+# vao db
+class UserInDBBase(UserBase):
     id: Optional[int] = None
     class Config:
         orm_mode = True
 
-class User(UserInDBase):
+# them thuoc tinh tra ve via api
+class User(UserInDBBase):
     pass
-
-class UserInDB(UserInDBase):
+# them thuoc tinh luu tru db
+class UserInDB(UserInDBBase):
     hashed_password: str
 
 # class UserBase(BaseModel):

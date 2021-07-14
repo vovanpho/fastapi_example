@@ -5,10 +5,10 @@ from fastapi import FastAPI ,Query, Path, Body, Header, Depends, HTTPException, 
 from sqlalchemy.orm import Session
 from functools import lru_cache
 # from api import models, schemas, crud
-# from app.database import SessionLocal, engine
+from app.db.session import engine, database
+from app.db import base
 from starlette.middleware.cors import CORSMiddleware
 from app.core.config import settings
-
 from app.api.api_v1.api import api_router
 
 @lru_cache()
@@ -32,16 +32,24 @@ origins = [
     "http://127.0.0.1:8000",
     "http://localhost",
 ]
-if settings.BACKEND_CORS_ORIGINS:
-    app.add_middleware(
+# if settings.BACKEND_CORS_ORIGINS:
+app.add_middleware(
         CORSMiddleware,
         allow_origins= origins,# [(origin) for origins in settings.BACKEND_CORS_ORIGINS],
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
-    )  
+)  
 app.include_router(api_router, prefix = settings.API_V1_STR)
 
+# @app.on_event("startup")
+# async def startup():
+#     await database.connect()
+
+
+# @app.on_event("shutdown")
+# async def shutdown():
+#     await database.disconnect()
 
 
 
